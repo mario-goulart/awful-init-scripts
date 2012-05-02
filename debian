@@ -1,0 +1,165 @@
+#!/bin/sh
+# Start/stop/restart/reload the awful web framework.
+#
+### BEGIN INIT INFO
+# Provides:          awful
+# Required-Start:    $remote_fs $syslog $time
+# Required-Stop:     $remote_fs $syslog $time
+# Should-Start:
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Awful web framework
+# Description:       A CHICKEN web framework on top of the Spiffy web server
+### END INIT INFO
+
+PIDFILE=/var/run/awful.pid
+NAME=awful
+AWFUL=/usr/bin/$NAME
+AWFUL_ARGS=''
+
+# In some systems the pidfile might be (incorrectly) set to /etc
+# if this pidfile is present, use it instead.
+[ -e /etc/$NAME.pid ] && PIDFILE=/etc/$NAME.pid
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+. /lib/lsb/init-functions
+
+[ -e "/etc/$NAME/$NAME.conf" ] && AWFUL_ARGS="/etc/$NAME/$NAME.conf $AWFUL_ARGS"
+[ -e "/etc/$NAME/privileged.conf" ] && AWFUL_ARGS="--privileged-code=/etc/$NAME/privileged.conf $AWFUL_ARGS"
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+
+is_running() {
+    if [ -f "$PIDFILE" ]; then
+        if pidofproc -p "$PIDFILE" >/dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+do_start() {
+    # Return
+    #   0 if daemon has been started
+    #   1 if daemon was already running
+    #   2 if daemon could not be started
+    echo "Starting $NAME"
+    if is_running; then
+        echo "$NAME is already running."
+    else
+        rm -f $PIDFILE
+        $AWFUL $AWFUL_ARGS &> /var/log/awful/init.log &
+        local pid=$!
+        local exit_code=$?
+        if [ "$exit_code" == "0" ]; then
+            echo $pid > $PIDFILE
+            return 0
+        else
+            return 2
+        fi
+    fi
+}
+
+
+do_stop() {
+    echo "Stopping $NAME"
+    if [ ! -f "$PIDFILE" ]; then
+        echo "Could not determine $NAME pid (no $PIDFILE)."
+        return 1
+    fi
+    local pid=`cat $PIDFILE`
+    local cmdline=`cat /proc/$pid/cmdline`
+    local cmd=`echo $AWFUL$AWFUL_ARGS | sed "s/ //g"`
+    local killed=
+
+    if [ "$cmd" == "$cmdline" ]; then
+        kill $pid
+        for i in `seq 1 5`; do
+            if pidofproc -p "$PIDFILE" >/dev/null; then
+                echo -n .
+                sleep 1
+                kill $pid
+            else
+                killed=1
+                break
+            fi
+        done
+
+        if [ $killed == "1" ]; then
+            rm -f $PIDFILE
+            return 0
+        else
+            return 1
+        fi
+    else
+        echo "Error stopping $NAME."
+        return 1
+    fi
+}
+
+
+do_restart() {
+    echo "Restarting $NAME"
+    do_stop
+    do_start
+    return $?
+}
+
+
+do_reload() {
+    # Considering awful defines a /reload page
+    echo "Reloading $NAME"
+    wget -O /dev/null http://localhost/reload &> /dev/null
+}
+
+
+do_status() {
+    if is_running; then
+        echo "running"
+        exit 0
+    else
+        if [ -e "$PIDFILE" ]; then
+            echo "failed to start"
+            exit 1
+        else
+            echo "not running"
+            exit 3
+        fi
+    fi
+}
+
+case "$1" in
+    start)
+        do_start
+        ;;
+
+    stop)
+        do_stop
+        ;;
+
+    restart)
+        do_restart
+        ;;
+
+    reload|force-reload)
+        do_reload
+        ;;
+
+    status)
+        do_status
+        ;;
+    *)
+        echo "Usage: /etc/init.d/$NAME {start|stop|status|restart|reload|force-reload}"
+        exit 2
+        ;;
+esac
+exit 0
