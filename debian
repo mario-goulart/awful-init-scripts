@@ -57,10 +57,10 @@ do_start() {
         echo "$NAME is already running."
     else
         rm -f $PIDFILE
-        $AWFUL $AWFUL_ARGS &> /var/log/awful/init.log &
+        $AWFUL $AWFUL_ARGS 2>&1 > /var/log/awful/init.log &
         local pid=$!
         local exit_code=$?
-        if [ "$exit_code" == "0" ]; then
+        if [ "$exit_code" = "0" ]; then
             echo $pid > $PIDFILE
             return 0
         else
@@ -81,7 +81,7 @@ do_stop() {
     local cmd=`echo $AWFUL$AWFUL_ARGS | sed "s/ //g"`
     local killed=
 
-    if [ "$cmd" == "$cmdline" ]; then
+    if [ "$cmd" = "$cmdline" ]; then
         kill $pid
         for i in `seq 1 5`; do
             if pidofproc -p "$PIDFILE" >/dev/null; then
@@ -94,7 +94,7 @@ do_stop() {
             fi
         done
 
-        if [ $killed == "1" ]; then
+        if [ $killed = "1" ]; then
             rm -f $PIDFILE
             return 0
         else
