@@ -1,0 +1,8 @@
+;; /etc/systemd/system/awful.service
+
+[Unit]                                                                                                                              
+Description=Awful web server
+
+[Service]
+ExecStart=/usr/bin/awful --privileged-code=/etc/awful/privileged.conf /etc/awful/awful.conf 
+Restart=on-failure
